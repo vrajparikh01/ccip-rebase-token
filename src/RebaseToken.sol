@@ -17,7 +17,8 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
     bytes32 private constant MINT_AND_BURN_ROLE = keccak256("MINT_AND_BURN_ROLE");
     uint256 public constant PRECISION_FACTOR = 1e18;
 
-    uint256 public s_interestRate = 5e10; // Global interest rate of token=
+    // 10^-8 = 1 / 10^8
+    uint256 public s_interestRate = (5 * PRECISION_FACTOR) / 1e8; // global interest rate of token
     mapping(address => uint256) public s_userInterestRates; // User-specific interest rates
     mapping(address => uint256) public s_userLastUpdatedTimestamp; // User-specific last updated timestamps
 
@@ -38,7 +39,7 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
     * @dev This function can only decrease the interest rate.
     */
     function setInterestRate(uint256 newInterestRate) public onlyOwner {
-        if(newInterestRate > s_interestRate) {
+        if(newInterestRate >= s_interestRate) {
             revert RebaseToken__InterestRateCanOnlyDecrease(s_interestRate, newInterestRate);
         }
         s_interestRate = newInterestRate;
@@ -76,11 +77,6 @@ contract RebaseToken is ERC20, Ownable, AccessControl {
     * @dev If the amount is max uint256, it will burn the entire balance of the user.
     */
     function burn(address from, uint256 amount) external onlyRole(MINT_AND_BURN_ROLE) {
-        // This allows users to burn all their tokens in one transaction if amount is max uint256
-        if (amount == type(uint256).max) {
-            amount = balanceOf(from);
-        }
-
         // Burn the accrued interest for the user
         _mintAccruedInterest(from);
 
