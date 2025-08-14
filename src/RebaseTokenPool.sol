@@ -20,8 +20,7 @@ contract RebaseTokenPool is TokenPool {
         // This is where risk management logic would go.
         _validateLockOrBurn(lockOrBurnIn);
 
-        address receiver = abi.decode(lockOrBurnIn.receiver, (address));
-        uint256 userInterestRate = IRebaseToken(address(i_token)).getUserInterestRate(receiver);
+        uint256 userInterestRate = IRebaseToken(address(i_token)).getUserInterestRate(lockOrBurnIn.originalSender);
 
         // Why address(this) instead of receiver?
         // Because we want to burn the tokens from the pool, not from the user's balance.
@@ -37,5 +36,15 @@ contract RebaseTokenPool is TokenPool {
     function releaseOrMint(
         Pool.ReleaseOrMintInV1 calldata releaseOrMintIn
     ) external returns (Pool.ReleaseOrMintOutV1 memory)
-    {}
+    {
+        // This is where risk management logic would go.
+        _validateReleaseOrMint(releaseOrMintIn);
+
+        uint256 userInterestRate = abi.decode(releaseOrMintIn.sourcePoolData, (uint256));
+        IRebaseToken(address(i_token)).mint(releaseOrMintIn.receiver, releaseOrMintIn.amount, userInterestRate);
+
+        return Pool.ReleaseOrMintOutV1({
+            destinationAmount: releaseOrMintIn.amount
+        });
+    }
 }
