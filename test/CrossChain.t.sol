@@ -19,6 +19,7 @@ import {IRouterClient} from "@ccip/contracts/src/v0.8/ccip/interfaces/IRouterCli
 contract RebaseTokenTest is Test {
     address public owner = makeAddr("owner");
     address public user = makeAddr("user");
+    uint256 public SEND_VALUE = 1e5;
 
     uint256 sepoliaFork;
     uint256 arbSepoliaFork;
@@ -38,7 +39,7 @@ contract RebaseTokenTest is Test {
     function setUp() public {
         // alias which is named in the foundry.toml file
         sepoliaFork = vm.createSelectFork("sepolia");
-        arbSepoliaFork = vm.createFork("arb-sepolia");
+        arbSepoliaFork = vm.createFork("arb_sepolia");
 
         ccipLocalSimulatorFork = new CCIPLocalSimulatorFork();
         vm.makePersistent(address(ccipLocalSimulatorFork));
@@ -48,6 +49,7 @@ contract RebaseTokenTest is Test {
         vm.startPrank(owner);
         sepoliaToken = new RebaseToken();
         vault = new Vault(IRebaseToken(address(sepoliaToken)));
+        vm.deal(address(vault), 1e18);
 
         // once tokens are deployed, deploy the pool which is responsible for minting and burning
         sepoliaPool = new RebaseTokenPool(
@@ -93,11 +95,11 @@ contract RebaseTokenTest is Test {
             address(arbSepoliaToken),
             address(arbSepoliaPool)
         );
+        vm.stopPrank();
 
         // Configure the token pools for cross-chain transfers after all deployments are done
         configureTokenPool(sepoliaFork, address(sepoliaPool), arbSepoliaNetworkDetails.chainSelector, address(arbSepoliaPool), address(arbSepoliaToken));
         configureTokenPool(arbSepoliaFork, address(arbSepoliaPool), sepoliaNetworkDetails.chainSelector, address(sepoliaPool), address(sepoliaToken));
-        vm.stopPrank();
     }
 
     // configure each pool by setting cross-chain transfer parameters, such as token pool rate limits and enabled destination chains.
@@ -139,7 +141,7 @@ contract RebaseTokenTest is Test {
             data: "",
             tokenAmounts: tokenAmounts,
             feeToken: localNetworkDetails.linkAddress,
-            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV1({gasLimit: 0}))
+            extraArgs: Client._argsToBytes(Client.EVMExtraArgsV2({gasLimit: 500_000, allowOutOfOrderExecution: false}))
         });
 
         // calculate the fee for the message
@@ -180,5 +182,34 @@ contract RebaseTokenTest is Test {
 
         uint256 remoteUserInterestRate = remoteToken.getUserInterestRate(user);
         assertEq(remoteUserInterestRate, localUserInterestRate);
+    }
+
+    function testBridgeAllTokens() public {
+        vm.selectFork(sepoliaFork);
+        vm.deal(user, SEND_VALUE);
+        vm.prank(user);
+        Vault(payable( address(vault))).deposit{value: SEND_VALUE}();
+        assertEq(sepoliaToken.balanceOf(user), SEND_VALUE);
+        bridgeTokens(
+            SEND_VALUE,
+            sepoliaFork,
+            arbSepoliaFork,
+            sepoliaNetworkDetails,
+            arbSepoliaNetworkDetails,
+            sepoliaToken,
+            arbSepoliaToken
+        );
+
+        vm.selectFork(arbSepoliaFork);
+        vm.warp(block.timestamp + 20 minutes); // Simulate time passing for the message to be processed
+        bridgeTokens(
+            arbSepoliaToken.balanceOf(user),
+            arbSepoliaFork,
+            sepoliaFork,
+            arbSepoliaNetworkDetails,
+            sepoliaNetworkDetails,
+            arbSepoliaToken,
+            sepoliaToken
+        );
     }
 }
