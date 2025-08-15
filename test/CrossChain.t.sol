@@ -45,7 +45,7 @@ contract RebaseTokenTest is Test {
         vm.makePersistent(address(ccipLocalSimulatorFork));
 
         // Deploy and configure on sepolia
-        sepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
+        sepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(11155111);
         vm.startPrank(owner);
         sepoliaToken = new RebaseToken();
         vault = new Vault(IRebaseToken(address(sepoliaToken)));
@@ -77,7 +77,7 @@ contract RebaseTokenTest is Test {
         vm.stopPrank();
 
         // Deploy and configure on arb-sepolia
-        arbSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(block.chainid);
+        arbSepoliaNetworkDetails = ccipLocalSimulatorFork.getNetworkDetails(421614);
         vm.selectFork(arbSepoliaFork);
         vm.startPrank(owner);
         arbSepoliaToken = new RebaseToken();
@@ -114,12 +114,12 @@ contract RebaseTokenTest is Test {
             remotePoolAddress: abi.encode(remotePool),
             remoteTokenAddress: abi.encode(remoteTokenAddress),
             outboundRateLimiterConfig: RateLimiter.Config({
-                isEnabled: true,
+                isEnabled: false,
                 capacity: 0,
                 rate: 0
             }),
             inboundRateLimiterConfig: RateLimiter.Config({
-                isEnabled: true,
+                isEnabled: false,
                 capacity: 0,
                 rate: 0
             })
@@ -175,6 +175,7 @@ contract RebaseTokenTest is Test {
         uint256 remoteUserBalanceBefore = remoteToken.balanceOf(user);
 
         // Propogate the message to the remote chain
+        vm.selectFork(localFork);
         ccipLocalSimulatorFork.switchChainAndRouteMessage(remoteFork);
 
         uint256 remoteUserBalanceAfter = remoteToken.balanceOf(user);
